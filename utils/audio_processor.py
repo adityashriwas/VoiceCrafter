@@ -15,6 +15,7 @@ def process_voice_clone(audio_path):
     """
     try:
         if not audio_path:
+            logger.debug("No audio path provided, using default voice")
             return "default_voice"
 
         logger.debug(f"Loading audio file from: {audio_path}")
@@ -24,6 +25,7 @@ def process_voice_clone(audio_path):
 
         # Extract voice features
         logger.debug("Extracting voice features...")
+
         # Pitch (fundamental frequency) using PYIN algorithm
         f0, voiced_flag, voiced_probs = librosa.pyin(y, 
                                                     fmin=librosa.note_to_hz('C2'), 
@@ -69,23 +71,38 @@ def generate_speech(text, model_path, language):
             try:
                 logger.debug(f"Loading voice features from: {model_path}")
                 # Load voice features
-                voice_features = np.load(model_path)
+                voice_features = np.load(model_path, allow_pickle=True)
 
                 # Time stretch to match target rhythm
                 y_stretched = librosa.effects.time_stretch(y, rate=0.95 + np.random.rand() * 0.1)
                 logger.debug("Applied time stretching")
 
                 # Pitch shift based on the target voice's average pitch
-                target_f0 = np.nanmean(voice_features['f0'][voice_features['f0'] > 0])
-                current_f0 = librosa.yin(y, fmin=librosa.note_to_hz('C2'), fmax=librosa.note_to_hz('C7'))[0]
-                pitch_shift = int(12 * np.log2(target_f0 / np.nanmean(current_f0[current_f0 > 0])))
-                y_shifted = librosa.effects.pitch_shift(y_stretched, sr=sr, n_steps=pitch_shift)
-                logger.debug(f"Applied pitch shift of {pitch_shift} steps")
+                target_f0 = voice_features['f0']
+                valid_f0 = target_f0[target_f0 > 0]
+                if len(valid_f0) > 0:
+                    target_f0_mean = np.nanmean(valid_f0)
+                    current_f0, voiced_flag = librosa.piptrack(y=y_stretched, sr=sr)
+                    current_f0_mean = np.nanmean(current_f0[current_f0 > 0])
 
+                    if current_f0_mean > 0:
+                        pitch_shift = int(12 * np.log2(target_f0_mean / current_f0_mean))
+                        y_shifted = librosa.effects.pitch_shift(y_stretched, sr=sr, n_steps=pitch_shift)
+                        logger.debug(f"Applied pitch shift of {pitch_shift} steps")
+                    else:
+                        y_shifted = y_stretched
+                        logger.debug("Skipped pitch shift due to invalid current pitch")
+                else:
+                    y_shifted = y_stretched
+                    logger.debug("Skipped pitch shift due to invalid target pitch")
+
+                # Enhance voice characteristics
                 y_processed = y_shifted
+                logger.debug("Voice adaptation complete")
             except Exception as e:
                 logger.error(f"Error in voice adaptation: {str(e)}")
-                y_processed = y
+                logger.debug("Falling back to stretched audio")
+                y_processed = y_stretched
         else:
             logger.debug("Using default voice (no adaptation)")
             y_processed = y

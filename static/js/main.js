@@ -41,14 +41,13 @@ async function uploadVoice() {
             body: formData
         });
 
-        const data = await response.json();
-
-        if (response.ok) {
-            currentModelPath = data.model_path;
-            showAlert('Voice profile created successfully');
-        } else {
-            throw new Error(data.error);
+        if (!response.ok) {
+            throw new Error(`Server responded with ${response.status}`);
         }
+
+        const data = await response.json();
+        currentModelPath = data.model_path;
+        showAlert('Voice profile created successfully');
     } catch (error) {
         showAlert(error.message || 'Error uploading file', true);
         currentModelPath = 'default_voice';
@@ -78,18 +77,24 @@ async function generateAudio() {
             })
         });
 
-        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(`Server responded with ${response.status}`);
+        }
 
-        if (response.ok) {
-            currentAudioPath = data.audio_path;
+        const data = await response.json();
+        currentAudioPath = data.audio_path;
+
+        if (currentAudioPath) {
             const audioOutput = document.getElementById('audioOutput');
             const audioPlayer = document.getElementById('audioPlayer');
-
             audioOutput.classList.remove('d-none');
-            audioPlayer.src = `/download/${encodeURIComponent(currentAudioPath)}`;
+
+            // Add timestamp to prevent caching
+            const timestamp = new Date().getTime();
+            audioPlayer.src = `/download/${encodeURIComponent(currentAudioPath)}?t=${timestamp}`;
             showAlert('Audio generated successfully');
         } else {
-            throw new Error(data.error);
+            throw new Error('No audio path received');
         }
     } catch (error) {
         showAlert(error.message || 'Error generating audio', true);
@@ -100,6 +105,7 @@ async function generateAudio() {
 
 function downloadAudio() {
     if (currentAudioPath) {
-        window.location.href = `/download/${encodeURIComponent(currentAudioPath)}`;
+        const timestamp = new Date().getTime();
+        window.location.href = `/download/${encodeURIComponent(currentAudioPath)}?t=${timestamp}`;
     }
 }
