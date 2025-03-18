@@ -96,8 +96,17 @@ def generate_audio():
 @app.route('/download/<path:filename>')
 def download_file(filename):
     try:
-        logger.debug(f"Downloading file: {filename}")
-        return send_file(filename, as_attachment=True)
+        logger.debug(f"Attempting to download file: {filename}")
+        if not os.path.exists(filename):
+            logger.error(f"File not found: {filename}")
+            return jsonify({'error': 'File not found'}), 404
+
+        return send_file(
+            filename,
+            as_attachment=True,
+            download_name='generated_audio.mp3',
+            mimetype='audio/mpeg'
+        )
     except Exception as e:
         logger.error(f"Error downloading file: {str(e)}")
         logger.error(traceback.format_exc())
