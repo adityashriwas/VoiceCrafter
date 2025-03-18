@@ -20,29 +20,20 @@ def process_voice_clone(audio_path):
 
         logger.debug(f"Loading audio file from: {audio_path}")
         # Load and process reference audio
-        y, sr = librosa.load(audio_path, sr=None)
+        y, sr = librosa.load(audio_path, sr=None, duration=30)  # Limit to 30 seconds
         logger.debug(f"Audio loaded successfully, sample rate: {sr}")
 
         # Extract voice features
         logger.debug("Extracting voice features...")
 
-        # Pitch (fundamental frequency) using PYIN algorithm
-        f0, voiced_flag, voiced_probs = librosa.pyin(y, 
-                                                    fmin=librosa.note_to_hz('C2'), 
-                                                    fmax=librosa.note_to_hz('C7'))
-        logger.debug("Pitch extraction complete")
-
-        # Extract spectral features
+        # Extract spectral features (simpler approach)
         mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=13)
-        spectral_centroid = librosa.feature.spectral_centroid(y=y, sr=sr)
-        logger.debug("Spectral features extracted")
+        logger.debug("MFCC extraction complete")
 
         # Save processed features
         temp_model_path = os.path.join(tempfile.gettempdir(), 'voice_features.npz')
         np.savez(temp_model_path,
-                f0=f0,
                 mfcc=mfcc,
-                spectral_centroid=spectral_centroid,
                 sample_rate=sr)
 
         logger.debug(f"Voice features saved to: {temp_model_path}")
@@ -73,36 +64,14 @@ def generate_speech(text, model_path, language):
                 # Load voice features
                 voice_features = np.load(model_path, allow_pickle=True)
 
-                # Time stretch to match target rhythm
-                y_stretched = librosa.effects.time_stretch(y, rate=0.95 + np.random.rand() * 0.1)
+                # Simple time stretching for voice adaptation
+                y_processed = librosa.effects.time_stretch(y, rate=0.95)
                 logger.debug("Applied time stretching")
 
-                # Pitch shift based on the target voice's average pitch
-                target_f0 = voice_features['f0']
-                valid_f0 = target_f0[target_f0 > 0]
-                if len(valid_f0) > 0:
-                    target_f0_mean = np.nanmean(valid_f0)
-                    current_f0, voiced_flag = librosa.piptrack(y=y_stretched, sr=sr)
-                    current_f0_mean = np.nanmean(current_f0[current_f0 > 0])
-
-                    if current_f0_mean > 0:
-                        pitch_shift = int(12 * np.log2(target_f0_mean / current_f0_mean))
-                        y_shifted = librosa.effects.pitch_shift(y_stretched, sr=sr, n_steps=pitch_shift)
-                        logger.debug(f"Applied pitch shift of {pitch_shift} steps")
-                    else:
-                        y_shifted = y_stretched
-                        logger.debug("Skipped pitch shift due to invalid current pitch")
-                else:
-                    y_shifted = y_stretched
-                    logger.debug("Skipped pitch shift due to invalid target pitch")
-
-                # Enhance voice characteristics
-                y_processed = y_shifted
-                logger.debug("Voice adaptation complete")
             except Exception as e:
                 logger.error(f"Error in voice adaptation: {str(e)}")
-                logger.debug("Falling back to stretched audio")
-                y_processed = y_stretched
+                logger.debug("Falling back to original audio")
+                y_processed = y
         else:
             logger.debug("Using default voice (no adaptation)")
             y_processed = y

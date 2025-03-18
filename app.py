@@ -61,7 +61,7 @@ def upload_file():
     except Exception as e:
         logger.error(f"Error processing file: {str(e)}")
         logger.error(traceback.format_exc())
-        return jsonify({'error': 'Error processing audio file'}), 500
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/generate', methods=['POST'])
 def generate_audio():
@@ -91,7 +91,7 @@ def generate_audio():
     except Exception as e:
         logger.error(f"Error generating audio: {str(e)}")
         logger.error(traceback.format_exc())
-        return jsonify({'error': 'Error generating audio'}), 500
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/download/<path:filename>')
 def download_file(filename):
@@ -110,7 +110,7 @@ def download_file(filename):
     except Exception as e:
         logger.error(f"Error downloading file: {str(e)}")
         logger.error(traceback.format_exc())
-        return jsonify({'error': 'Error downloading file'}), 500
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
