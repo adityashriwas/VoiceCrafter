@@ -1,3 +1,4 @@
+let currentModelPath = 'default_voice';
 let currentAudioPath = null;
 
 function showAlert(message, isError = false) {
@@ -21,6 +22,41 @@ function showProgress(elementId, show = true) {
     }
 }
 
+async function uploadVoice() {
+    const fileInput = document.getElementById('audioFile');
+    const file = fileInput.files[0];
+
+    if (!file) {
+        showAlert('Please select a file first', true);
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('audio', file);
+
+    try {
+        showProgress('uploadProgress');
+        const response = await fetch('/upload', {
+            method: 'POST',
+            body: formData
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            currentModelPath = data.model_path;
+            showAlert('Voice profile created successfully');
+        } else {
+            throw new Error(data.error);
+        }
+    } catch (error) {
+        showAlert(error.message || 'Error uploading file', true);
+        currentModelPath = 'default_voice';
+    } finally {
+        showProgress('uploadProgress', false);
+    }
+}
+
 async function generateAudio() {
     const text = document.getElementById('inputText').value.trim();
 
@@ -38,7 +74,7 @@ async function generateAudio() {
             },
             body: JSON.stringify({
                 text: text,
-                model_path: 'default_voice'  // Using default voice since we're using gTTS
+                model_path: currentModelPath
             })
         });
 
