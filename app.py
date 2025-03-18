@@ -5,6 +5,7 @@ from werkzeug.utils import secure_filename
 from utils.audio_processor import process_voice_clone, generate_speech
 from utils.language_detector import detect_language
 import tempfile
+import traceback
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -17,6 +18,7 @@ app.secret_key = os.environ.get("SESSION_SECRET", "default-secret-key")
 UPLOAD_FOLDER = tempfile.gettempdir()
 ALLOWED_EXTENSIONS = {'wav', 'mp3'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = 20 * 1024 * 1024  # 20MB max file size
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -25,25 +27,32 @@ def allowed_file(filename):
 def index():
     return render_template('index.html')
 
+@app.errorhandler(Exception)
+def handle_error(error):
+    logger.error(f"Unhandled error: {str(error)}")
+    logger.error(traceback.format_exc())
+    return jsonify({'error': 'Internal server error'}), 500
+
 @app.route('/upload', methods=['POST'])
 def upload_file():
-    if 'audio' not in request.files:
-        return jsonify({'error': 'No file provided'}), 400
-
-    file = request.files['audio']
-    if file.filename == '':
-        return jsonify({'error': 'No file selected'}), 400
-
-    if not allowed_file(file.filename):
-        return jsonify({'error': 'Invalid file format'}), 400
-
     try:
+        if 'audio' not in request.files:
+            return jsonify({'error': 'No file provided'}), 400
+
+        file = request.files['audio']
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+
+        if not allowed_file(file.filename):
+            return jsonify({'error': 'Invalid file format'}), 400
+
         filename = secure_filename(file.filename)
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(filepath)
 
-        # Process voice cloning
+        logger.debug(f"Processing voice file: {filepath}")
         model_path = process_voice_clone(filepath)
+        logger.debug(f"Voice profile created at: {model_path}")
 
         return jsonify({
             'message': 'Voice profile created successfully',
@@ -51,11 +60,15 @@ def upload_file():
         })
     except Exception as e:
         logger.error(f"Error processing file: {str(e)}")
+        logger.error(traceback.format_exc())
         return jsonify({'error': 'Error processing audio file'}), 500
 
 @app.route('/generate', methods=['POST'])
 def generate_audio():
     try:
+        if not request.is_json:
+            return jsonify({'error': 'Invalid content type, expected JSON'}), 400
+
         data = request.json
         text = data.get('text')
         model_path = data.get('model_path', 'default_voice')
@@ -77,12 +90,18 @@ def generate_audio():
         })
     except Exception as e:
         logger.error(f"Error generating audio: {str(e)}")
+        logger.error(traceback.format_exc())
         return jsonify({'error': 'Error generating audio'}), 500
 
 @app.route('/download/<path:filename>')
 def download_file(filename):
     try:
+        logger.debug(f"Downloading file: {filename}")
         return send_file(filename, as_attachment=True)
     except Exception as e:
         logger.error(f"Error downloading file: {str(e)}")
+        logger.error(traceback.format_exc())
         return jsonify({'error': 'Error downloading file'}), 500
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=True)
