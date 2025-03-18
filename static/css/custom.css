@@ -1,0 +1,18 @@
+/* Custom styles to complement Bootstrap theme */
+.card {
+    border-radius: 10px;
+    border: 1px solid var(--bs-border-color);
+}
+
+.progress {
+    height: 10px;
+    border-radius: 5px;
+}
+
+#audioPlayer {
+    border-radius: 5px;
+}
+
+.toast {
+    min-width: 300px;
+}
