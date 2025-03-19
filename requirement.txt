@@ -1,0 +1,13 @@
+Flask
+gunicorn
+werkzeug
+flask-cors
+flask-restful
+requests
+logging
+tempfile
+numpy
+pydub
+torch
+transformers
+langdetect
