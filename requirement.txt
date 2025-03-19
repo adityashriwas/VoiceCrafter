@@ -5,7 +5,6 @@ flask-cors
 flask-restful
 requests
 logging
-tempfile
 numpy
 pydub
 torch
